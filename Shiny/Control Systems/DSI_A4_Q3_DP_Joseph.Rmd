@@ -1,0 +1,173 @@
+---
+title: "DSI - Assignment 4 - Q3"
+author: "Dipin P Joseph"
+output:
+  html_document
+---
+
+The dataset contains 10000 observations consists of 3 numeric variables along with timestamps. The given data may not be following a normal distribution. Hence, as a better approach, the observations are grouped by dates which are extracted from ‘Timestamp’ since means of consecutive observations tend to be normally distributed so that control charts will avoid false positives. The current grouped, near-normal data is best described by ‘xbar’ and ‘s’ control charts (for average measurements).
+
+```{r  message=FALSE}
+library(qicharts2)
+library(readr)
+library(dplyr)
+df <- read.csv("monitor.csv")
+#den <- density(df$Prediction)
+#plot(den)
+df_agg <- df %>% group_by(as.Date(df$Timestamp)) 
+colnames(df_agg)[5]<- "Date"
+summary(df_agg)
+
+```
+Total observations in each Date group,
+
+```{r}
+df_agg %>% group_by(Date) %>% count()
+```
+## a) Is the memory usage of the server in control?
+
+The data of 'ProcessMemory'(the allocated memory (MB) of the relevant server process) for the first 20(freeze parameter) days were used for learning and defining control limits for later data.
+The mean and standard deviation is calculated till freeze and after the freeze to obtain the shift of distribution and found only negligible step difference.
+
+```{r}
+# Mean
+#First 20 day
+mean(df_agg[0:20,]$ProcessMemory) 
+sqrt(var(df_agg[0:20,]$ProcessMemory))
+
+# SD
+# After 20 days
+mean(df_agg[21:10000,]$ProcessMemory)
+sqrt(var(df_agg[21:10000,]$ProcessMemory))
+
+```
+
+
+```{r}
+
+P<-qicharts2::qic(ProcessMemory, 
+               x     = Date, 
+               data  = df_agg,
+               chart = 'xbar',
+               ylab  = 'MB',
+               xlab  = 'Date',
+               freeze = 20,
+               subtitle = "N(11.9821,0.4877345) then N(12.085,0.5050161)")
+P
+summary(P)
+
+
+```
+
+The control charts show a gradual upward movement from the mean line on considered data. It is justified by the param 'longest.runs - 41'. From mid-February, for 41 consecutive days, the memory usage hasn't lowered to mean value, hence the system will move out of control gradually. Also, in chart 10 red points (sigma.signal-10) crossing upper limit(runs.signal - 1 denotes breach), longest.run -41 > longest.run.max- 10 and 'n.crossings - 22' is less than 'n.crossings.min - 37' so the range is deviating from mean showing the need for a thorough examination of the system.
+
+Plotting 's' chart to check for Process memory's variability.
+```{r}
+q<-qicharts2::qic(ProcessMemory, 
+    x = Date, 
+    data = df_agg,
+    chart = 's',
+    ylab = 'MB',
+    xlab = 'Date',
+    freeze = 20,
+    subtitle = "N(11.9821,0.4877345) then N(12.085,0.5050161)")
+q
+summary(q)
+```
+
+The variability of ProcessMemory is found within the limits(along with few upper and lower spikes). Hence, in terms of variablitiy alone, the ProcessMemory is in control(runs.signal-0 denotes no breach, longest.run-6 < longest.run.max-10 and n.crossings-47 > n.crossings.min-37).
+
+Since Xbar chart is out of control the overall conclusion is that the 'ProcessMemory' is out of control.
+
+## b) Is the prediction time of the model in control?
+
+A similar approach is taken to check control of 'PredictionTimeMS'(the duration of the prediction task in milliseconds). Data of the first 20 days of January is taken for calculating control limits. From the mean and standard deviation of two sets of 'PredictionTimeMS' small step change is observed.
+```{r}
+
+#First 20 days
+mean(df_agg[0:20,]$PredictionTimeMS) 
+sqrt(var(df_agg[0:20,]$PredictionTimeMS))
+
+#After 20 days
+mean(df_agg[21:10000,]$PredictionTimeMS)
+sqrt(var(df_agg[21:10000,]$PredictionTimeMS))
+
+p1<-qicharts2::qic(PredictionTimeMS, 
+    x     = Date, 
+    data  = df_agg,
+    chart = 'xbar',
+    ylab  = 'Predication Time(ms)',
+    xlab  = 'Date',
+    freeze = 20,
+    subtitle = "N(334.1878,83.0628) then N(349.2994,72.26461)")
+p1
+summary(p1)
+```
+
+From control charts and summary, it can be said that mean of 'PredictionTimeMS' is under control since longest.run-6 < longest.run.max-10, n.crossings-45>n.crossings.min-37 and runs.signal-0 and sigma.signal-0 indicates no breaches.
+
+Plotting 's' chart to check for Prediction Time variability.
+
+```{r}
+
+q1<-qicharts2::qic(PredictionTimeMS, 
+    x     = Date, 
+    data  = df_agg,
+    chart = 's',
+    ylab  = 'Predication Time(ms)',
+    xlab  = 'Date',
+    freeze = 20,
+    subtitle = "N(334.1878,83.0628) then N(349.2994,72.26461)")
+q1
+summary(q1)
+```
+
+From control chart, Prediction Time went out of control at 4 instances(4 red points above upper limit, sigma.signal-4) between February and April. It's justified with summary parameters - longest.run-12>longest.run.max-10, n.crossings-31<n.crossings.min-37 and runs.signal-1(breach).
+
+So, it is concluded based on overall Predication Time, the system will be out of control when high variability occurs.
+
+## c) Is the stream of predictions in control?
+
+Similar approach is taken to check control of 'Prediction'(the value predicted by the model). Data of the first 20 days of January is taken for calculating control limits. From mean and standard deviation of two sets of 'Prediction' negligible step change is observed.
+
+```{r}
+
+# First 20 days
+mean(df_agg[0:20,]$Prediction) 
+sqrt(var(df_agg[0:20,]$Prediction))
+
+# After 20 days
+mean(df_agg[21:10000,]$Prediction)
+sqrt(var(df_agg[21:10000,]$Prediction))
+
+p2<-qicharts2::qic(Prediction, 
+    x     = Date, 
+    data  = df_agg,
+    chart = 'xbar',
+    ylab  = 'prediction',
+    xlab  = 'Date',
+    freeze = 20,
+    subtitle = "N(52.84359,9.24843) then N(55.05381,8.609205)")
+p2
+summary(p2)
+```
+
+Here, it seems we are looking into outliers and spread of predicted values. From the Xbar chart and summary, it seems the system is in control. There is no breaches or limit crossing (runs.signal-0, sigma.signal-0) or any long run or crossing violations is observed(longest.run-6<longest.run.max-10 and n.crossings.min-37<n.crossings-47).
+
+```{r}
+
+q2<-qicharts2::qic(Prediction, 
+    x     = Date, 
+    data  = df_agg,
+    chart = 's',
+    ylab  = 'Predication',
+    xlab  = 'Date',
+    freeze = 20,
+    subtitle = "N(52.84359,9.24843) then N(55.05381,8.609205)")
+q2
+summary(q2)
+```
+
+The variability of prediction stream seems to be out of control because of long runs in upper(Mid March - April) and lower(February - Mid March) regions (longest.run-35>longest.run.max-10 and runs.signal-1 shows breaches). 
+
+So, in conclusion, the stream of predicted values is said to be out of control.

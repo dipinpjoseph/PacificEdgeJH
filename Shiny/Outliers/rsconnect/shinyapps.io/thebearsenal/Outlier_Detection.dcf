@@ -1,0 +1,12 @@
+name: Outlier_Detection
+title: Outlier_Detection
+username:
+account: thebearsenal
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2151230
+bundleId: 3058712
+url: https://thebearsenal.shinyapps.io/Outlier_Detection/
+when: 1587717750.86107
+asMultiple: FALSE
+asStatic: FALSE

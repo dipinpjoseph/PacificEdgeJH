@@ -1,0 +1,184 @@
+---
+title: "STAT448 - Assignment 2"
+author: "Dipin Ponthempilly Joseph (72746678), Nandakumar Thachapilly (35044765)"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+---
+
+### Q1 a) 
+Set a seed at the beginning of your code equal to the last 4 numbers of your student id (or one of your student id’s if you work in pairs)
+
+```{r message=FALSE}
+# Setting seed for reproducibility
+set.seed(4765)
+```
+
+### Q1 b)
+Split the data set into a training set and a test set
+
+```{r message=FALSE}
+# Working Directory
+setwd("~/MEGA/SEM1-Feb-2020/BigData/A2/STAT448-Assignment_2/STAT448 - Assignment 2")
+
+# Clear Environment
+rm(list=ls()) 
+
+# Load Environment from the given .RData file
+load("Residen.RData")
+
+# NA visualization - No NAs found
+visdat::vis_dat(Residen)
+
+# Train/Test split in random at 0.8 ratio
+row.number <- sample(1:nrow(Residen), 0.8*nrow(Residen))
+train = Residen[row.number,]
+test = Residen[-row.number,]
+
+# Dimensions for Train/Test Data
+dim(train)
+dim(test)
+```
+
+### Q1 c)
+Fit a linear regression model on the training set to explain the
+”actual sales price” (V104) in terms of the of the other variables
+excluding the variable ”actual construction costs” (V105). Report
+the test RMSE obtained.
+
+```{r message=FALSE}
+# Create Linear Regression Model with training data excluding variable V105
+lm_model <- lm(V104 ~. -V105, data=train, trace=FALSE)
+summary(lm_model)
+par(mfrow=c(2,2))
+plot(lm_model)
+
+# Predict the actual sales using linear regression model created.
+lm_Predicted <- predict(lm_model, test)
+
+# Calcuating the test RMSE of Linear regression model
+lm_rmse <- sqrt(mean((test$V104 - lm_Predicted)^2))
+c("Linear Regression Model RMSE" = lm_rmse)
+```
+
+### Q1 d)
+Fit a linear regression model using stepwise selection on the train-
+ing set. Report the test RMSE obtained.
+
+```{r message=FALSE}
+library(MASS)
+
+# NULL Model
+null_model = lm(V104 ~1, data=train)
+#summary(null_model)
+    
+# Upper Model
+upper_model = lm(V104 ~., data=train)
+#summary(upper_model)
+
+# Linear Regression with Stepwise Selection
+lm_stepwise <- stepAIC(null_model, direction="both",trace=FALSE ,scope=list(upper=upper_model,lower=null_model))
+summary(lm_stepwise)
+
+# Predication
+lm_stepwise_pred <- predict(lm_stepwise, test)
+
+# Calculating the test RMSE of Linear regression model
+lm_step_rmse <- sqrt(mean((test$V104 - lm_stepwise_pred)^2))
+c(Step_RMSE = lm_step_rmse)
+```
+
+### Q1 e)
+Fit a linear regression model using ridge regression on the training
+set, with λ chosen by cross validation. Report the test RMSE
+obtained.
+```{r message=FALSE}
+# Ridge Regression
+library(dplyr)
+library(glmnet)
+# create matricies for the regression equation
+x = model.matrix(V104~. -V105,Residen)[,-1]
+y = Residen %>%
+  dplyr::select(V104) %>%
+  unlist() %>%
+  as.numeric()
+
+x_train = model.matrix(V104~. -V105,train)[,-1]
+y_train = train %>%
+  dplyr::select(V104) %>%
+  unlist() %>%
+  as.numeric()
+
+x_test = model.matrix(V104~. -V105,test)[,-1]
+y_test = test %>%
+  dplyr::select(V104) %>%
+  unlist() %>%
+  as.numeric()
+
+grid=10^seq(10,-2,length=100)
+plot(grid)
+ridge_mod = glmnet(x_train, y_train, alpha = 0, lambda = grid, thresh = 1e-12,trace=FALSE)
+dim(coef(ridge_mod))
+plot(ridge_mod) 
+
+cv.out = cv.glmnet(x_train, y_train, alpha = 0,trace=FALSE) # Fit ridge regression model on training data
+bestlam = cv.out$lambda.min  # Select lamda that minimizes training MSE
+c("Best Lambda for Ridge Regression" = bestlam)
+
+plot(cv.out) # Draw plot of training MSE as a function of lambda
+log(bestlam)
+
+ridge_pred <- predict(ridge_mod, s = bestlam, newx = x_test) # Use best lambda to predict test data
+rr_rmse <- sqrt(mean((y_test - ridge_pred)^2))
+c(ridge_RMSE = rr_rmse)
+```
+
+### Q1 f)
+Fit a linear regression model using lasso on the training set, with λ
+chosen by cross validation. Report the test RMSE obtained along
+with the number of non-zero coefficient estimates.
+
+```{r message=FALSE}
+# Lasso
+
+lasso_mod=glmnet(x_train,y_train,alpha=1,lambda=grid,trace=FALSE) #fit lasso model on training data
+plot(lasso_mod)                                       #Draw plot of coefficients 
+cv.out=cv.glmnet(x_train,y_train,alpha=1,trace=FALSE)           #Fit lasso model on training data   
+plot(cv.out)
+bestlam=cv.out$lambda.min     #Select lambda that minimises training data
+c("Best Lambda for lasso" = bestlam)
+
+lasso_pred=predict(lasso_mod,s=bestlam,newx=x_test) #Use best lambda to predict test data
+lo_rmse <- sqrt(mean((y_test - lasso_pred)^2))
+c(lasso_RMSE = lo_rmse)
+
+out=glmnet(x,y,alpha=1,lambda=grid,trace=FALSE) #Fit lasso model on the full dataset
+lasso_coeff=predict(out,type="coefficients",s=bestlam)[1:108,] #Display coefficients using lambda chosen by CV
+# lasso_coeff
+lasso_coeff[lasso_coeff !=0] #Display only non-zero coefficients
+```
+
+### Q1 g)
+Comment on the results obtained. How accurately can we predict the actual sale price? Is there much difference among the test errors resulting from these four approaches?
+
+Test Root Mean Square Error by different models,
+```{r}
+rmse_t =matrix(c(lm_rmse,lm_step_rmse,rr_rmse,lo_rmse))
+rownames(rmse_t) = (c("Linear Regression", "Linear Regression (Stepwise)",  "Ridge Regression", "LASSO"))
+colnames(rmse_t) = c("Test RMSE")
+as.table(rmse_t)
+
+```
+
+From the test and train metrics model LASSO got the best performance with RMSE of 170.4990 on test data . Stepwise linear regression also performed well with RMSE of 179.9235. 
+
+```{r}
+# Rsquared value of LASSO
+rss <- sum((lasso_pred - y_test) ^ 2)  ## residual sum of squares
+tss <- sum((y_test - mean(y_test)) ^ 2)  ## total sum of squares
+rsq <- 1 - rss/tss
+c("R-squared for test set in LASSO model" = rsq)
+```
+
+This means that 98.53 % variation in V104 can be explained from other predictor variables. 
+The simple linear regression performed poorly while other three showed better performance. The main reason must be the multi colinearity present among predictor variables.
